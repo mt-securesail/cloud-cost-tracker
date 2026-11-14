@@ -35,13 +35,14 @@ jobs:
       # the real one stays in AWS SSM. ALLOWED_HOSTS lets the app answer ZAP,
       # which reaches it by its container name ("app") instead of the real
       # domain. The app runs in production mode, so HTTPS headers (HSTS) are
-      # scanned too. No AWS credentials exist on the runner.
+      # scanned too. No AWS credentials exist on the runner, and
+      # COST_FETCH_ENABLED=false stops the app from trying to fetch cost data.
       - name: Start the app
         run: |
           docker network create zapnet
           docker run -d --name app --network zapnet -p 3000:3000 \
             -e SECRET_KEY_BASE="$(openssl rand -hex 64)" \
-            -e ALLOWED_HOSTS=app,localhost "$IMAGE"
+            -e ALLOWED_HOSTS=app,localhost -e COST_FETCH_ENABLED=false "$IMAGE"
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:3000/up > /dev/null; then echo "App is up"; exit 0; fi
             sleep 2

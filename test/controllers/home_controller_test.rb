@@ -1,9 +1,65 @@
 require "test_helper"
 
+# Records whether any AWS SDK client is created while armed.
+module AwsClientCreationTrap
+  class << self
+    attr_accessor :armed, :tripped
+  end
+
+  def new(...)
+    AwsClientCreationTrap.tripped = true if AwsClientCreationTrap.armed
+    super
+  end
+end
+Seahorse::Client::Base.singleton_class.prepend(AwsClientCreationTrap)
+
 class HomeControllerTest < ActionDispatch::IntegrationTest
+  setup { CostStore.reset! }
+  teardown { CostStore.reset! }
+
   test "should get index" do
     get root_url
     assert_response :success
+  end
+
+  test "before the first fetch the page says so instead of failing" do
+    get root_url
+    assert_response :success
+    assert_select "#current-charges", /Loading/
+    assert_select "#estimated-total", /Loading/
+    assert_match "Costs not loaded yet", response.body
+  end
+
+  test "shows the stored figures" do
+    now = Time.now.utc
+    CostStore.record_success(:cloudwatch, CostSources::CloudWatchCharges::Result.new(amount: BigDecimal("31.46"), as_of: now - 2.hours))
+    CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
+      month_to_date: BigDecimal("1234.5"), by_service: {}, forecast: nil, forecast_note: :insufficient_data
+    ))
+
+    get root_url
+    assert_select "#current-charges", /\$31\.46/
+    assert_select "#estimated-total", /\$[\d,]+\.\d{2}/
+    assert_match "Costs last updated at", response.body
+    assert_match "Projection (simple)", response.body
+    assert_match "$1,234.50", response.body
+  end
+
+  test "a failed refresh shows a warning with the error class only" do
+    CostStore.record_failure(:cost_explorer, "Aws::CostExplorer::Errors::AccessDeniedException")
+    get root_url
+    assert_response :success
+    assert_match "Last refresh failed (AccessDeniedException)", response.body
+  end
+
+  test "page views never create an AWS client" do
+    AwsClientCreationTrap.tripped = false
+    AwsClientCreationTrap.armed = true
+    get root_url
+    assert_response :success
+    assert_not AwsClientCreationTrap.tripped, "a page view created an AWS client"
+  ensure
+    AwsClientCreationTrap.armed = false
   end
 
   # Regression test for finding #7 (code injection via eval of a request param).

@@ -1,13 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title>Cloud Cost Tracker</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <%= yield :head %>
     <%# Styles live here, allowed by the CSP nonce (config/initializers/content_security_policy.rb).
         Inline style="..." attributes would be blocked by the CSP. %>
     <style nonce="<%= content_security_policy_nonce %>">
-      body { font-family: -apple-system, sans-serif; max-width: 640px; margin: 4rem auto; color: #1a1a1a; }
+      :root { --fg: #1a1a1a; --muted: #5f6368; --bg: #ffffff; --card: #f4f5f7; --warn: #a15c00; }
+      @media (prefers-color-scheme: dark) {
+        :root { --fg: #e8eaed; --muted: #9aa0a6; --bg: #17181b; --card: #222428; --warn: #f2b84b; }
+      }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 640px;
+             margin: 2rem auto; padding: 0 1rem; color: var(--fg); background: var(--bg); line-height: 1.4; }
+      h1 { font-size: 1.4rem; margin: 0 0 0.5rem; }
+      h2 { font-size: 0.95rem; font-weight: 600; margin: 0; color: var(--muted); }
+      .headline { margin: 0.25rem 0; }
+      .muted, .as-of, .detail, footer { color: var(--muted); }
+      .as-of { font-size: 0.85rem; margin: 0.25rem 0 1.25rem; padding-left: 1.1rem; }
+      .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; }
+      .figure { background: var(--card); border-radius: 10px; padding: 0.9rem 1rem; }
+      .amount { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; font-variant-numeric: tabular-nums; }
+      .detail { font-size: 0.8rem; margin: 0.15rem 0; }
+      .warning { font-size: 0.8rem; margin: 0.4rem 0 0; color: var(--warn); }
+      .period { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 1.25rem 0; }
+      .period dt { color: var(--muted); }
+      .period dd { margin: 0; }
+      footer { font-size: 0.75rem; border-top: 1px solid var(--card); margin-top: 1.5rem; padding-top: 0.5rem; }
     </style>
   </head>
   <body>
