@@ -23,7 +23,7 @@ class ProductionConfigTest < ActiveSupport::TestCase
 
   def self.probe
     @probe ||= begin
-      env = { "RAILS_ENV" => "production", "SECRET_KEY_BASE" => "0" * 64, "ALLOWED_HOSTS" => nil }
+      env = { "RAILS_ENV" => "production", "SECRET_KEY_BASE" => "0" * 64, "ALLOWED_HOSTS" => nil, "COST_FETCH_ENABLED" => "false" }
       out, status = Open3.capture2e(env, "bin/rails", "runner", PROBE, chdir: Rails.root.to_s)
       line = out.lines.find { |l| l.start_with?("PROBE_RESULT ") }
       raise "production probe failed (exit #{status.exitstatus}):\n#{out}" unless line

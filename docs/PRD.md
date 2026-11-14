@@ -121,7 +121,8 @@ around $3/month**. Task restarts add about $0.03 each.
 ### 6.2 Current charges (F3)
 
 - `GetMetricData` for `AWS/Billing` / `EstimatedCharges` / `Currency=USD` (no `ServiceName` dimension = account
-  total), statistic `Maximum`, period 6 h, over the last 2 days. Use the most recent datapoint.
+  total), statistic `Maximum`, period 1 h (so the "as of" time is within an hour of AWS's update), over the last
+  2 days. Use the most recent datapoint.
 - The metric resets at the start of each month. A datapoint timestamped in the previous month must not be shown as the
   current month's charges. Show "No data yet this period" instead.
 - Prerequisite: **"Receive CloudWatch billing alerts"** must be turned on in the management account

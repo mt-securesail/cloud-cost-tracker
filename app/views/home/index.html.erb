@@ -1,7 +1,65 @@
-<h1>Cloud Cost Tracker</h1>
-<p>Placeholder page. The cost dashboard arrives in Phase 2.</p>
-<ul>
-  <li>Environment: <strong><%= Rails.env %></strong></li>
-  <li>Deployed version: <strong><%= @app_version %></strong></li>
-</ul>
-<p>Health check endpoint: <a href="/up">/up</a></p>
+<%# Reloads the page every 5 minutes (served from memory; never calls AWS), to
+    pick up new CloudWatch values and keep the "ago" times current. AWS data
+    changes only a few times a day, so more often adds nothing. A later PR
+    replaces this with JavaScript that updates the numbers in place. %>
+<% content_for :head do %>
+  <meta http-equiv="refresh" content="300">
+<% end %>
+<% s = @summary %>
+<% estimate = s.estimated_total %>
+
+<header>
+  <h1>Cloud Cost Tracker</h1>
+  <p class="headline">
+    <% if s.last_updated_at %>
+      Costs last updated at <strong><%= format_time(s.last_updated_at) %></strong>
+      <span class="muted">(<%= age(s.last_updated_at, s.now) %>)</span>
+    <% else %>
+      Costs not loaded yet. The first fetch runs when the app starts; this page reloads every 5 minutes.
+    <% end %>
+  </p>
+  <ul class="as-of">
+    <li>Current charges (CloudWatch): <%= as_of(s.current_charges_as_of, s.now, loaded: s.cloudwatch_loaded?) %></li>
+    <li>Estimated total (Cost Explorer): <%= as_of(s.cost_explorer_as_of, s.now, loaded: s.cost_explorer_loaded?) %></li>
+  </ul>
+</header>
+
+<section class="figures">
+  <div class="figure">
+    <h2>Current charges</h2>
+    <p class="amount" id="current-charges">
+      <% if !s.cloudwatch_loaded? %>Loading…<% elsif s.current_charges.nil? %>No data yet this period<% else %><%= usd(s.current_charges) %><% end %>
+    </p>
+    <p class="detail">Month to date, CloudWatch estimate</p>
+    <% if (failure = refresh_failure(s.cloudwatch_error)) %><p class="warning"><%= failure %></p><% end %>
+  </div>
+
+  <div class="figure">
+    <h2>Estimated total for <%= s.period.start_date.strftime("%B") %></h2>
+    <p class="amount" id="estimated-total"><%= estimate ? usd(estimate.amount) : "Loading…" %></p>
+    <% if estimate %>
+      <p class="detail"><%= estimate_label(estimate) %></p>
+      <% if estimate.low && estimate.high %>
+        <p class="detail">Likely range: <%= usd(estimate.low) %> – <%= usd(estimate.high) %></p>
+      <% end %>
+      <p class="detail">Month to date (Cost Explorer): <%= usd(s.month_to_date) %></p>
+      <% if (note = forecast_note(estimate)) %><p class="detail"><%= note %></p><% end %>
+    <% end %>
+    <% if (failure = refresh_failure(s.cost_explorer_error)) %><p class="warning"><%= failure %></p><% end %>
+  </div>
+</section>
+
+<dl class="period">
+  <dt>Today (UTC)</dt>
+  <dd><%= format_date(s.period.today) %></dd>
+  <dt>Billing period</dt>
+  <dd><%= format_date(s.period.start_date) %> – <%= format_date(s.period.last_date) %></dd>
+  <dt>Day</dt>
+  <dd id="day-of-period"><%= s.period.day_number %> of <%= s.period.days_in_period %></dd>
+</dl>
+
+<footer>
+  <p>AWS cost data lags actual usage by several hours. CloudWatch and Cost Explorer update at different times, so their
+    figures can differ slightly.</p>
+  <p>Version: <%= @app_version %></p>
+</footer>

@@ -6,3 +6,7 @@ gem "puma", "~> 7.2"
 group :development, :test do
   gem "brakeman", require: false
 end
+
+# Read-only billing data (PRD 7.1). Credentials come only from the ECS task role.
+gem "aws-sdk-cloudwatch", "~> 1.0"
+gem "aws-sdk-costexplorer", "~> 1.0"
