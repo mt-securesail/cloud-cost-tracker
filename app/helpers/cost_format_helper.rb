@@ -34,7 +34,7 @@ module CostFormatHelper
   end
 
   ESTIMATE_LABELS = {
-    forecast: "Month to date + AWS forecast for the rest of the month",
+    forecast: "AWS forecast for the whole month (includes month to date)",
     final: "Last day of the month: month to date",
     projection: "Projection (simple): month to date ÷ days so far × days in month"
   }.freeze

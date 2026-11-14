@@ -1,5 +1,5 @@
 module CostSources
-  # Month-to-date cost (by service) and the forecast for the rest of the month,
+  # Month-to-date cost (by service) and AWS's forecast for the whole month,
   # from Cost Explorer (PRD F4, F10, section 6.3).
   #
   # Every Cost Explorer request costs $0.01, so this makes at most 2 requests per
@@ -19,7 +19,7 @@ module CostSources
     def fetch
       period = BillingPeriod.current(@clock.call)
       by_service = month_to_date_by_service(period)
-      forecast, note = forecast_for_rest_of(period)
+      forecast, note = whole_month_forecast(period)
 
       Result.new(
         month_to_date: by_service.values.sum(BigDecimal("0")).round(2),
@@ -49,7 +49,11 @@ module CostSources
       totals.transform_values { |amount| amount.round(2) }
     end
 
-    def forecast_for_rest_of(period)
+    # The request covers today to the period end, but for the current month
+    # AWS returns the forecast for the WHOLE month, actual costs to date
+    # included (it matches "forecasted month end costs" in Billing and Cost
+    # Management). Don't add the month to date to it (findings log #4).
+    def whole_month_forecast(period)
       # Nothing left to forecast on the last day (PRD 6.3).
       return [nil, :last_day] if period.last_day?
 
