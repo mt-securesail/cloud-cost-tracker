@@ -25,6 +25,8 @@
       .amount { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; font-variant-numeric: tabular-nums; }
       .detail { font-size: 0.8rem; margin: 0.15rem 0; }
       .warning { font-size: 0.8rem; margin: 0.4rem 0 0; color: var(--warn); }
+      .stale { color: var(--warn); }
+      [hidden] { display: none !important; }
       .period { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 1.25rem 0; }
       .period dt { color: var(--muted); }
       .period dd { margin: 0; }
@@ -32,12 +34,19 @@
       .scroll { overflow-x: auto; }
       table.costs { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
       table.costs th, table.costs td { padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--card); text-align: left; }
-      table.costs th[scope="row"] { font-weight: normal; }
+      table.costs th[scope="row"] { font-weight: normal; overflow-wrap: anywhere; }
       table.costs .num { text-align: right; white-space: nowrap; }
       table.costs thead th { color: var(--muted); font-weight: 600; }
       table.costs tfoot th, table.costs tfoot td { font-weight: 700; border-bottom: none; }
       .tag { font-size: 0.7rem; color: var(--muted); border: 1px solid var(--muted); border-radius: 4px; padding: 0 0.3rem; white-space: nowrap; }
       footer { font-size: 0.75rem; border-top: 1px solid var(--card); margin-top: 1.5rem; padding-top: 0.5rem; }
+      /* Phones: tighter margins and smaller figures; the comparison table scrolls sideways. */
+      @media (max-width: 480px) {
+        body { margin: 1rem auto; }
+        .amount { font-size: 1.6rem; }
+        table.costs { font-size: 0.8rem; }
+        table.costs th, table.costs td { padding: 0.3rem 0.25rem; }
+      }
     </style>
   </head>
   <body>

@@ -7,6 +7,8 @@ class SecurityHeadersTest < ActionDispatch::IntegrationTest
   PAGES = {
     "home page" => ["/", 200],
     "health check" => ["/up", 200],
+    "summary JSON" => ["/summary.json", 200],
+    "dashboard script" => ["/dashboard.js", 200],
     "unknown page (404)" => ["/robots.txt", 404]
   }.freeze
 

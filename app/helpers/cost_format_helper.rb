@@ -1,6 +1,7 @@
 # Consistent formatting for amounts, dates, and times (PRD N5).
-# Times are shown in UTC for now; local-time display comes with the page's
-# JavaScript in a later PR.
+# Times render in UTC on the server; app/javascript/dashboard.js rewrites every
+# <time data-local> into the browser's time zone, and keeps the "ago" text
+# current with the same rules as #age.
 module CostFormatHelper
   def usd(amount)
     return "—" if amount.nil?
@@ -18,16 +19,28 @@ module CostFormatHelper
     time.utc.strftime("%a, %b %-d, %Y %-l:%M %p UTC")
   end
 
+  # Must match age() in app/javascript/dashboard.js.
   def age(time, now)
-    "#{distance_of_time_in_words(time, now)} ago"
+    seconds = [(now - time).to_i, 0].max
+    if seconds < 60 then "just now"
+    elsif seconds < 1.hour then "#{seconds / 60} min ago"
+    elsif seconds < 48.hours then "#{seconds / 3600} h ago"
+    else "#{seconds / 1.day} days ago"
+    end
   end
 
-  # "Mon, Nov 9, 2026 3:00 PM UTC (about 2 hours ago)", or a placeholder.
-  def as_of(time, now, loaded:)
-    return "not loaded yet" unless loaded
-    return "no data yet this period" if time.nil?
+  def local_time_tag(time)
+    tag.time(format_time(time), datetime: time.utc.iso8601, data: { local: "" })
+  end
 
-    "#{format_time(time)} (#{age(time, now)})"
+  def age_tag(time, now)
+    tag.span("(#{age(time, now)})", class: "muted", data: { since: time.utc.iso8601 })
+  end
+
+  # "2 hours", "1 hour", "30 minutes".
+  def duration_words(seconds)
+    seconds = seconds.to_i
+    (seconds % 3600).zero? ? pluralize(seconds / 3600, "hour") : pluralize(seconds / 60, "minute")
   end
 
   # Only the error class name, never its message (which can contain details).

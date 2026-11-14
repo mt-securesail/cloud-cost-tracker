@@ -5,14 +5,20 @@ class CostSummary
   # linear projection, PRD F10), or :final (last day of the month).
   Estimate = Data.define(:amount, :method, :low, :high, :note)
 
+  SOURCES = %i[cloudwatch cost_explorer history].freeze
+  # A source is stale when it hasn't refreshed successfully for this many of
+  # its refresh intervals (PRD F9): one missed refresh is normal, two is not.
+  STALE_AFTER_INTERVALS = 2
+
   attr_reader :period, :now
 
-  def initialize(now: Time.now.utc, store: CostStore)
+  def initialize(now: Time.now.utc, store: CostStore, intervals: SOURCES.to_h { |s| [s, CostRefresher.interval(s)] })
     @now = now.utc
     @period = BillingPeriod.current(@now)
     @cloudwatch = store.read(:cloudwatch)
     @cost_explorer = store.read(:cost_explorer)
     @history = store.read(:history)
+    @intervals = intervals
   end
 
   # --- Current charges (F3), from CloudWatch ---
@@ -99,6 +105,29 @@ class CostSummary
     !history_result.nil?
   end
 
+  # --- Per source: "as of" times and staleness (F5, F9) ---
+
+  def as_of(source)
+    { cloudwatch: current_charges_as_of, cost_explorer: cost_explorer_as_of, history: history_as_of }.fetch(source)
+  end
+
+  def loaded?(source)
+    { cloudwatch: cloudwatch_loaded?, cost_explorer: cost_explorer_loaded?, history: history_loaded? }.fetch(source)
+  end
+
+  # Seconds without a successful refresh before the source counts as stale.
+  def stale_after(source)
+    @intervals.fetch(source) * STALE_AFTER_INTERVALS
+  end
+
+  # True when the last good data is kept on screen but the refresher hasn't
+  # replaced it for too long (failing fetches, or a stopped timer). The page
+  # keeps showing the data, with a warning (F9).
+  def stale?(source)
+    fetched_at = entry(source).fetched_at
+    !fetched_at.nil? && now - fetched_at > stale_after(source)
+  end
+
   # --- Headline (F5) ---
 
   # The most recent "as of" time across all sources.
@@ -107,6 +136,10 @@ class CostSummary
   end
 
   private
+
+  def entry(source)
+    { cloudwatch: @cloudwatch, cost_explorer: @cost_explorer, history: @history }.fetch(source)
+  end
 
   # A datapoint from an earlier month is last month's total, not this month's (R7).
   def cloudwatch_result
