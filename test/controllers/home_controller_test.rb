@@ -45,6 +45,27 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_match "$1,234.50", response.body
   end
 
+  test "shows the service table with Bedrock models as their own rows" do
+    by_service = { "Amazon Elastic Load Balancing" => BigDecimal("9.10"),
+                   "Claude Sonnet 4.5 (Amazon Bedrock Edition)" => BigDecimal("1.25") }
+    CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
+      month_to_date: BigDecimal("10.35"), by_service: by_service, forecast: nil, forecast_note: nil
+    ))
+    get root_url
+    assert_select "#by-service tbody tr", 2
+    assert_select "#by-service tr.bedrock th", /Claude Sonnet 4\.5 \(Amazon Bedrock Edition\)/
+    assert_select "#by-service tfoot td", /\$10\.35/
+  end
+
+  test "service names from AWS are shown as text, never as HTML" do
+    CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
+      month_to_date: BigDecimal("1"), by_service: { "<script>alert(1)</script>" => BigDecimal("1") }, forecast: nil, forecast_note: nil
+    ))
+    get root_url
+    assert_no_match "<script>alert(1)</script>", response.body
+    assert_match "&lt;script&gt;alert(1)&lt;/script&gt;", response.body
+  end
+
   test "a failed refresh shows a warning with the error class only" do
     CostStore.record_failure(:cost_explorer, "Aws::CostExplorer::Errors::AccessDeniedException")
     get root_url

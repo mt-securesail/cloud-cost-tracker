@@ -8,7 +8,8 @@ module CostSources
   class CostExplorerTotals
     Forecast = Data.define(:mean, :low, :high)
     # forecast is nil when unavailable; forecast_note then says why.
-    # by_service: { "Amazon EC2" => BigDecimal, ... }, used by the breakdown table (PR B).
+    # by_service: { "Amazon EC2" => BigDecimal, ... }, unrounded, so a Bedrock
+    # model that cost a fraction of a cent still shows up in the breakdown.
     Result = Data.define(:month_to_date, :by_service, :forecast, :forecast_note)
 
     def initialize(client: nil, clock: -> { Time.now.utc })
@@ -46,7 +47,7 @@ module CostSources
           end
         end
       end
-      totals.transform_values { |amount| amount.round(2) }
+      totals
     end
 
     # The request covers today to the period end, but for the current month

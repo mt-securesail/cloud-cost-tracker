@@ -3,7 +3,11 @@
 # JavaScript in a later PR.
 module CostFormatHelper
   def usd(amount)
-    amount.nil? ? "—" : number_to_currency(amount, unit: "$", precision: 2)
+    return "—" if amount.nil?
+    # Real but tiny costs (such as a short Bedrock test) would otherwise show as $0.00.
+    return "< $0.01" if amount.positive? && amount < BigDecimal("0.005")
+
+    number_to_currency(amount, unit: "$", precision: 2)
   end
 
   def format_date(date)

@@ -12,6 +12,7 @@ class CostSummary
     @period = BillingPeriod.current(@now)
     @cloudwatch = store.read(:cloudwatch)
     @cost_explorer = store.read(:cost_explorer)
+    @history = store.read(:history)
   end
 
   # --- Current charges (F3), from CloudWatch ---
@@ -76,11 +77,33 @@ class CostSummary
     !explorer_result.nil?
   end
 
+  # --- By service (F6) and 3-month comparison (F7) ---
+
+  # nil until Cost Explorer's month to date has loaded. The comparison
+  # columns are empty until the daily history fetch has loaded too.
+  def breakdown
+    return nil unless explorer_result
+
+    ServiceBreakdown.new(current: explorer_result.by_service, history: history_result&.months)
+  end
+
+  def history_as_of
+    history_result && @history.fetched_at
+  end
+
+  def history_error
+    @history.error
+  end
+
+  def history_loaded?
+    !history_result.nil?
+  end
+
   # --- Headline (F5) ---
 
   # The most recent "as of" time across all sources.
   def last_updated_at
-    [current_charges_as_of, cost_explorer_as_of].compact.max
+    [current_charges_as_of, cost_explorer_as_of, history_as_of].compact.max
   end
 
   private
@@ -89,6 +112,14 @@ class CostSummary
   def cloudwatch_result
     result = @cloudwatch.result
     return nil if result&.as_of && result.as_of < period.starts_at
+
+    result
+  end
+
+  # History fetched for an earlier period has the wrong 3 months (R7).
+  def history_result
+    result = @history.result
+    return nil if result.nil? || result.period_start != period.start_date
 
     result
   end

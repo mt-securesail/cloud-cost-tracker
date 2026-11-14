@@ -20,7 +20,8 @@
   </p>
   <ul class="as-of">
     <li>Current charges (CloudWatch): <%= as_of(s.current_charges_as_of, s.now, loaded: s.cloudwatch_loaded?) %></li>
-    <li>Estimated total (Cost Explorer): <%= as_of(s.cost_explorer_as_of, s.now, loaded: s.cost_explorer_loaded?) %></li>
+    <li>Estimated total and by service (Cost Explorer): <%= as_of(s.cost_explorer_as_of, s.now, loaded: s.cost_explorer_loaded?) %></li>
+    <li>Previous 3 months (Cost Explorer): <%= as_of(s.history_as_of, s.now, loaded: s.history_loaded?) %></li>
   </ul>
 </header>
 
@@ -48,6 +49,62 @@
     <% if (failure = refresh_failure(s.cost_explorer_error)) %><p class="warning"><%= failure %></p><% end %>
   </div>
 </section>
+
+<% if (b = s.breakdown) %>
+  <section>
+    <h2 class="section-title">This month by service</h2>
+    <table class="costs" id="by-service">
+      <thead><tr><th scope="col">Service</th><th scope="col" class="num">Cost</th><th scope="col" class="num">Share</th></tr></thead>
+      <tbody>
+        <% (b.rows + [b.other].compact).each do |row| %>
+          <tr<% if row.bedrock %> class="bedrock"<% end %>>
+            <th scope="row"><%= row.name %><% if row.bedrock %> <span class="tag">Bedrock model</span><% end %></th>
+            <td class="num"><%= usd(row.current) %></td>
+            <td class="num"><%= (pct = b.share(row.current)) ? "#{pct}%" : "–" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot><tr><th scope="row">Total</th><td class="num"><%= usd(b.totals.current) %></td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h2 class="section-title">Previous 3 months</h2>
+    <% if b.months.empty? %>
+      <p class="detail"><%= s.history_error ? refresh_failure(s.history_error) : "Loading…" %></p>
+    <% else %>
+      <div class="scroll">
+        <table class="costs" id="comparison">
+          <thead>
+            <tr>
+              <th scope="col">Service</th>
+              <% b.months.each do |m| %><th scope="col" class="num"><%= m.strftime("%b") %></th><% end %>
+              <th scope="col" class="num"><%= s.period.start_date.strftime("%b") %>*</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% (b.rows + [b.other].compact).each do |row| %>
+              <tr<% if row.bedrock %> class="bedrock"<% end %>>
+                <th scope="row"><%= row.name %></th>
+                <% b.months.each do |m| %><td class="num"><%= usd(row.months[m]) %></td><% end %>
+                <td class="num"><%= usd(row.current) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">Total</th>
+              <% b.months.each do |m| %><td class="num"><%= usd(b.totals.months[m]) %></td><% end %>
+              <td class="num"><%= usd(b.totals.current) %></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="detail">* Month to date. Rows are this month's top 10 services plus every Bedrock model; other services are in "Other".</p>
+      <% if (failure = refresh_failure(s.history_error)) %><p class="warning"><%= failure %></p><% end %>
+    <% end %>
+  </section>
+<% end %>
 
 <dl class="period">
   <dt>Today (UTC)</dt>
