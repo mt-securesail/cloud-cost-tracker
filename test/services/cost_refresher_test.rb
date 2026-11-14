@@ -51,6 +51,8 @@ class CostRefresherTest < ActiveSupport::TestCase
   test "intervals default to the PRD values and can't go below the floor" do
     assert_equal 1800, CostRefresher.interval(:cloudwatch, env: {})
     assert_equal 21_600, CostRefresher.interval(:cost_explorer, env: {})
+    assert_equal 86_400, CostRefresher.interval(:history, env: {})
+    assert_equal 3600, CostRefresher.interval(:history, env: { "COST_REFRESH_HISTORY_SECONDS" => "60" })
     assert_equal 7200, CostRefresher.interval(:cost_explorer, env: { "COST_REFRESH_COST_EXPLORER_SECONDS" => "7200" })
     assert_equal 3600, CostRefresher.interval(:cost_explorer, env: { "COST_REFRESH_COST_EXPLORER_SECONDS" => "5" })
     assert_equal 21_600, CostRefresher.interval(:cost_explorer, env: { "COST_REFRESH_COST_EXPLORER_SECONDS" => "oops" })

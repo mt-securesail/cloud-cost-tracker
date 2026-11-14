@@ -86,10 +86,33 @@ class CostSummaryTest < ActiveSupport::TestCase
     assert_equal Time.utc(2026, 11, 14, 12), CostSummary.new(now: NOW).last_updated_at
   end
 
+  test "history fetched for last month's period is ignored after rollover" do
+    stale = CostSources::MonthlyHistory::Result.new(period_start: Date.new(2026, 10, 1), months: { Date.new(2026, 7, 1) => {} })
+    CostStore.record_success(:history, stale, at: Time.utc(2026, 10, 31, 20))
+    summary = CostSummary.new(now: Time.utc(2026, 11, 1, 1))
+
+    assert_not summary.history_loaded?
+    assert_nil summary.history_as_of
+  end
+
+  test "breakdown combines this month by service with the history" do
+    explorer_result = CostSources::CostExplorerTotals::Result.new(month_to_date: BigDecimal("1"), by_service: { "Amazon Route 53" => BigDecimal("1") },
+                                                                 forecast: nil, forecast_note: nil)
+    CostStore.record_success(:cost_explorer, explorer_result, at: NOW)
+    history = CostSources::MonthlyHistory::Result.new(period_start: Date.new(2026, 11, 1),
+                                                      months: { Date.new(2026, 10, 1) => { "Amazon Route 53" => BigDecimal("0.5") } })
+    CostStore.record_success(:history, history, at: NOW)
+
+    b = CostSummary.new(now: NOW).breakdown
+    assert_equal [Date.new(2026, 10, 1)], b.months
+    assert_equal BigDecimal("0.5"), b.rows.first.months[Date.new(2026, 10, 1)]
+  end
+
   test "nothing loaded yet" do
     summary = CostSummary.new(now: NOW)
     assert_nil summary.last_updated_at
     assert_nil summary.estimated_total
+    assert_nil summary.breakdown
     assert_not summary.cloudwatch_loaded?
   end
 end

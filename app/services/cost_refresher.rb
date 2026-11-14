@@ -6,11 +6,15 @@
 # loop, so a failing Cost Explorer can't run up charges (N3).
 class CostRefresher
   # Defaults from the PRD; override with environment variables (R6).
-  DEFAULT_INTERVALS = { cloudwatch: 30.minutes, cost_explorer: 6.hours }.freeze
-  ENV_NAMES = { cloudwatch: "COST_REFRESH_CLOUDWATCH_SECONDS", cost_explorer: "COST_REFRESH_COST_EXPLORER_SECONDS" }.freeze
+  DEFAULT_INTERVALS = { cloudwatch: 30.minutes, cost_explorer: 6.hours, history: 1.day }.freeze
+  ENV_NAMES = {
+    cloudwatch: "COST_REFRESH_CLOUDWATCH_SECONDS",
+    cost_explorer: "COST_REFRESH_COST_EXPLORER_SECONDS",
+    history: "COST_REFRESH_HISTORY_SECONDS"
+  }.freeze
   # Floors, so a typo in an override can't turn into a request storm.
   # Cost Explorer is $0.01 per request: hourly at most is about $15/month.
-  MINIMUM_INTERVALS = { cloudwatch: 5.minutes, cost_explorer: 1.hour }.freeze
+  MINIMUM_INTERVALS = { cloudwatch: 5.minutes, cost_explorer: 1.hour, history: 1.hour }.freeze
 
   class << self
     # Only the real web server fetches, never tests, consoles, `rails runner`,
@@ -60,7 +64,8 @@ class CostRefresher
     def sources
       {
         cloudwatch: CostSources::CloudWatchCharges.new,
-        cost_explorer: CostSources::CostExplorerTotals.new
+        cost_explorer: CostSources::CostExplorerTotals.new,
+        history: CostSources::MonthlyHistory.new
       }
     end
   end
