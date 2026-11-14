@@ -40,8 +40,12 @@ by-service breakdown. Deployed to AWS ECS Fargate by GitHub Actions, with the sa
   it up (`data` source) and must never create or delete it. Trust policies use the repo's immutable subject prefix
   (`github_oidc_sub_prefix` in `terraform.tfvars`).
 - Workflows: CI (`ci.yml`: tests, Brakeman), container scans (`container-scan.yml`: Trivy, Grype, Trivy config),
-  `dependency-review.yml`, ZAP on PRs (`zap.yml`), and CD (`cd.yml`: CI, deploy via OIDC, then ZAP against
-  production using the separate scan role in `infra/zap_scan.tf`).
+  `dependency-review.yml`, ZAP on PRs (`zap.yml`), commit email privacy (`commit-privacy.yml`: every commit email
+  must be a no-reply address), and CD (`cd.yml`: CI, deploy via OIDC, then ZAP against production using the separate
+  scan role in `infra/zap_scan.tf`).
+- Ruleset `protect-main` requires these checks: `test`, `brakeman`, `dependency-review`, `trivy`, `grype`,
+  `trivy-config`, `zap`, `commit-emails`. CodeQL default setup and its ruleset rule are added after the first merge
+  (CodeQL needs code on `main` to detect languages).
 - GitHub setup after `terraform apply` (values from `terraform output`):
   - Secrets: `AWS_DEPLOY_ROLE_ARN`, `AWS_ZAP_SCAN_ROLE_ARN`.
   - Variables: `AWS_REGION`, `ECR_REPOSITORY`, `ECS_CLUSTER`, `ECS_SERVICE`, `ECS_TASK_DEFINITION_FAMILY`,
