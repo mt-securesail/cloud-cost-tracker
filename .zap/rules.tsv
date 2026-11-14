@@ -1,0 +1,23 @@
+# ZAP baseline rule levels, used by .github/workflows/zap.yml (and the
+# production scan). Format: <rule id><TAB><IGNORE|INFO|WARN|FAIL><TAB>(name)
+# Rules not listed here default to WARN (reported, doesn't fail the job).
+#
+# FAIL  = the job fails if this rule is triggered. Promote rules here once
+#         they're fixed, so they can't come back.
+# IGNORE = accepted. Add a comment line above with the reason, who decided,
+#         and a review date, and log it in docs/findings-log.md.
+
+# Fixed before the first scan (copied from rails-ecs-demo; findings log #1). FAIL so they can't come back.
+10038	FAIL	(Content Security Policy (CSP) Header Not Set)
+10063	FAIL	(Permissions Policy Header Not Set)
+90004	FAIL	(Insufficient Site Isolation Against Spectre Vulnerability)
+
+# HTTPS-only app (PRD S1, S2): HSTS must always be sent. Checked on the production
+# scan (HTTPS); also covered by test/security/production_config_test.rb.
+10035	FAIL	(Strict-Transport-Security Header Not Set)
+
+# Accepted 2026-11-13 (findings log #1): informational. Pages are dynamic and
+# intentionally not stored by any cache (every response sends Cache-Control:
+# no-store, config/initializers/no_store.rb; checked by test/security/security_headers_test.rb). Decided by the repo owner (mt-securesail).
+# Review by 2027-05-13.
+10049	IGNORE	(Non-Storable Content)

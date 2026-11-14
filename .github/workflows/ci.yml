@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  # On pushes to main, the deploy workflow (cd.yml) calls this workflow and
+  # deploys only if every job here passes. A separate push trigger would just
+  # run the same checks twice.
+  workflow_call:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Run tests
+        run: bin/rails test
+
+  brakeman:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      # Brakeman exits non-zero when it finds warnings. Let this step continue
+      # so the results still get uploaded for viewing, then fail the job below.
+      # The job's pass/fail result is what the branch ruleset requires.
+      - name: Run Brakeman
+        id: brakeman
+        continue-on-error: true
+        run: bundle exec brakeman -f sarif -o brakeman-results.sarif
+
+      - name: Upload Brakeman SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: brakeman-results.sarif
+          category: brakeman
+
+      - name: Fail the job if Brakeman found problems
+        if: steps.brakeman.outcome == 'failure'
+        run: |
+          echo "Brakeman reported warnings or errors. See the code scanning results."
+          exit 1
