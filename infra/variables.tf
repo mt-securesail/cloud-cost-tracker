@@ -71,12 +71,6 @@ variable "container_port" {
   default     = 3000
 }
 
-variable "secret_key_base" {
-  description = "Rails secret_key_base. Generate locally with `openssl rand -hex 64`. Pass with -var, never commit this."
-  type        = string
-  sensitive   = true
-}
-
 locals {
   app_fqdn = "${var.app_subdomain}.${var.domain_name}"
   # 1 when the app is switched on, 0 when off. Used as `count` on the costly resources.
