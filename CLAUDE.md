@@ -1,6 +1,6 @@
 # Project context for Claude
 
-AWS Cost Tracker: a single-user Rails dashboard showing the AWS account's current-month charges, forecast, and
+Cloud Cost Tracker: a single-user Rails dashboard showing the AWS account's current-month charges, forecast, and
 by-service breakdown. Deployed to AWS ECS Fargate by GitHub Actions, with the same security pipeline as the
 `mt-securesail/rails-ecs-demo` training repo. What to build is in `docs/PRD.md`; read it at the start of a session.
 
@@ -8,7 +8,7 @@ by-service breakdown. Deployed to AWS ECS Fargate by GitHub Actions, with the sa
 
 - Always say exactly where an instruction applies: the **AWS Management Console** (browser), the **GitHub website**,
   the **VS Code terminal**, or the **Claude Code panel**. Never just say "the console".
-- Prefix PR and issue numbers with the repo name, e.g. "aws-cost-tracker/PR #3". I work on several repos at once.
+- Prefix PR and issue numbers with the repo name, e.g. "cloud-cost-tracker/PR #3". I work on several repos at once.
 - Be concise.
 
 ## Safety rules
@@ -28,10 +28,10 @@ by-service breakdown. Deployed to AWS ECS Fargate by GitHub Actions, with the sa
 
 ## Facts about this setup
 
-- GitHub repo: `mt-securesail/aws-cost-tracker` (public). Default branch: `main`.
-- App URL: `https://aws-cost-est.example-apps.com`. Domain registered in Route 53; Terraform only looks up its
+- GitHub repo: `mt-securesail/cloud-cost-tracker` (public). Default branch: `main`.
+- App URL: `https://cloud-cost-est.example-apps.com`. Domain registered in Route 53; Terraform only looks up its
   hosted zone.
-- AWS region: `us-east-1`. Cluster `aws-cost-tracker-cluster`, service `aws-cost-tracker-service`.
+- AWS region: `us-east-1`. Cluster `cloud-cost-tracker-cluster`, service `cloud-cost-tracker-service`.
 - Infrastructure is Terraform in `infra/`, with state stored locally. `terraform.tfvars` and state files are
   gitignored.
 - On/off switch: `app_enabled` in `infra/terraform.tfvars`. `false` removes the ALB, ECS service, and DNS record;

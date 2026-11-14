@@ -2,15 +2,15 @@
 # terraform.tfvars is gitignored. Never commit real values, especially secret_key_base or your IP.
 
 aws_region   = "us-east-1"
-project_name = "aws-cost-tracker"
+project_name = "cloud-cost-tracker"
 github_org   = "your-github-username"
-github_repo  = "aws-cost-tracker"
+github_repo  = "cloud-cost-tracker"
 
 # From: gh api repos/OWNER/REPO/actions/oidc/customization/sub (the sub_claim_prefix value)
-github_oidc_sub_prefix = "repo:your-github-username@123/aws-cost-tracker@456"
+github_oidc_sub_prefix = "repo:your-github-username@123/cloud-cost-tracker@456"
 
 domain_name   = "example.com"
-app_subdomain = "aws-cost-est"
+app_subdomain = "cloud-cost-est"
 
 # Who can reach the load balancer. Use your own public IP with /32.
 # Find it with: curl -s https://checkip.amazonaws.com

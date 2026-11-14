@@ -20,7 +20,7 @@ Rails.application.configure do
   # blocks Host-header attacks. ALLOWED_HOSTS (comma-separated) overrides the
   # default; the ZAP scan on pull requests sets it to its container name.
   # /up is excluded because ALB health checks use the task's IP address.
-  config.hosts = ENV.fetch("ALLOWED_HOSTS", "aws-cost-est.example-apps.com").split(",").map(&:strip)
+  config.hosts = ENV.fetch("ALLOWED_HOSTS", "cloud-cost-est.example-apps.com").split(",").map(&:strip)
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   config.log_tags = [:request_id]

@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: aws-cost-tracker:zap
+  IMAGE: cloud-cost-tracker:zap
   # Official image (ghcr.io/zaproxy/zaproxy:stable), pinned by digest so a
   # changed tag can't change what runs. Digest checked 2026-11-11 (image built
   # 2026-11-03). To upgrade, look up the new "stable" digest and replace it.

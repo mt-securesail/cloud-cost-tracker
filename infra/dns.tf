@@ -41,7 +41,7 @@ resource "aws_acm_certificate_validation" "this" {
   validation_record_fqdns = [for r in aws_route53_record.cert_validation : r.fqdn]
 }
 
-# aws-cost-est.<domain> -> the load balancer. Removed with the ALB when the app
+# cloud-cost-est.<domain> -> the load balancer. Removed with the ALB when the app
 # is switched off, and recreated pointing at the new ALB when it's back on, so
 # the URL never changes.
 resource "aws_route53_record" "app" {

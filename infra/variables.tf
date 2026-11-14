@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "Short name used to prefix all resources"
   type        = string
-  default     = "aws-cost-tracker"
+  default     = "cloud-cost-tracker"
 }
 
 variable "app_enabled" {
@@ -25,7 +25,7 @@ variable "domain_name" {
 variable "app_subdomain" {
   description = "The app is served at <app_subdomain>.<domain_name>"
   type        = string
-  default     = "aws-cost-est"
+  default     = "cloud-cost-est"
 }
 
 variable "availability_zones" {

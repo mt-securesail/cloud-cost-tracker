@@ -8,7 +8,7 @@ require "open3"
 # the test environment, so this boots the app in production mode in a separate
 # process and sends it requests directly (no network, no AWS).
 class ProductionConfigTest < ActiveSupport::TestCase
-  HOST = "aws-cost-est.example-apps.com"
+  HOST = "cloud-cost-est.example-apps.com"
 
   PROBE = <<~RUBY
     require "json"

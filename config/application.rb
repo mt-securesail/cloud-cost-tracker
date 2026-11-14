@@ -5,7 +5,7 @@ require "action_controller/railtie"
 
 Bundler.require(*Rails.groups)
 
-module AwsCostTracker
+module CloudCostTracker
   class Application < Rails::Application
     config.load_defaults 8.1
 

@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: aws-cost-tracker:scan
+  IMAGE: cloud-cost-tracker:scan
   # Trivy is downloaded directly instead of through aquasecurity/trivy-action,
   # whose tags were hijacked in the March 2026 supply-chain attack
   # (CVE-2026-33634). The checksum below was taken from GitHub's record of the

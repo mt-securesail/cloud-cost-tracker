@@ -1,4 +1,4 @@
-# AWS Cost Tracker
+# Cloud Cost Tracker
 
 A small, single-user dashboard that shows the current month's AWS charges, the forecast for the month, and where the
 money is going by service. Built to stay open in a browser window while working on other AWS projects.

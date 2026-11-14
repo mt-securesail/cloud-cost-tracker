@@ -162,7 +162,7 @@ jobs:
 
       # Runs even if the scan failed or was cancelled. If this step ever fails,
       # remove the rule by hand (AWS Management Console: EC2 → Security Groups →
-      # aws-cost-tracker-alb-sg → Inbound rules, description "zap-scan-run-…"),
+      # cloud-cost-tracker-alb-sg → Inbound rules, description "zap-scan-run-…"),
       # or run terraform apply, which removes rules it doesn't know about.
       - name: Remove the runner from the ALB allow-list
         if: always() && steps.open.outputs.ip != ''
