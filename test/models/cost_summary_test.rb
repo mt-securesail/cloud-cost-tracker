@@ -14,14 +14,35 @@ class CostSummaryTest < ActiveSupport::TestCase
     CostSources::CostExplorerTotals::Forecast.new(mean: BigDecimal(mean), low: low && BigDecimal(low), high: high && BigDecimal(high))
   end
 
-  test "estimated total is month to date plus the forecast" do
+  test "estimated total is AWS's whole-month forecast, not month to date plus forecast" do
     CostStore.record_success(:cost_explorer, explorer(mtd: "20.00", forecast: forecast("30.00", "25.00", "36.00")), at: NOW)
     estimate = CostSummary.new(now: NOW).estimated_total
 
     assert_equal :forecast, estimate.method
-    assert_equal BigDecimal("50.00"), estimate.amount
-    assert_equal BigDecimal("45.00"), estimate.low
-    assert_equal BigDecimal("56.00"), estimate.high
+    assert_equal BigDecimal("30.00"), estimate.amount
+    assert_equal BigDecimal("25.00"), estimate.low
+    assert_equal BigDecimal("36.00"), estimate.high
+  end
+
+  # Regression test for findings log #4, using the real figures from
+  # 2026-11-14: Billing and Cost Management showed a $54 forecast, and the page
+  # showed $88.14 because it added the month to date ($33.91) a second time.
+  test "the month to date is not counted twice" do
+    CostStore.record_success(:cost_explorer, explorer(mtd: "33.91", forecast: forecast("54.23", "53.41", "55.06")), at: NOW)
+    estimate = CostSummary.new(now: NOW).estimated_total
+
+    assert_equal BigDecimal("54.23"), estimate.amount
+    assert_equal BigDecimal("53.41"), estimate.low
+    assert_equal BigDecimal("55.06"), estimate.high
+  end
+
+  test "the estimate never ends below what's already been spent" do
+    CostStore.record_success(:cost_explorer, explorer(mtd: "40.00", forecast: forecast("38.00", "36.00", "41.00")), at: NOW)
+    estimate = CostSummary.new(now: NOW).estimated_total
+
+    assert_equal BigDecimal("40.00"), estimate.amount
+    assert_equal BigDecimal("40.00"), estimate.low
+    assert_equal BigDecimal("41.00"), estimate.high
   end
 
   test "without a forecast, a labeled simple projection is used" do

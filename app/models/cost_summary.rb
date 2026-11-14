@@ -1,7 +1,7 @@
 # Everything the dashboard shows, computed from CostStore (PRD 4.1, section 6).
 # Pure: reads the store and the clock, never calls AWS.
 class CostSummary
-  # method: :forecast (month to date + AWS forecast), :projection (simple
+  # method: :forecast (AWS's whole-month forecast), :projection (simple
   # linear projection, PRD F10), or :final (last day of the month).
   Estimate = Data.define(:amount, :method, :low, :high, :note)
 
@@ -50,9 +50,12 @@ class CostSummary
     if period.last_day?
       Estimate.new(amount: mtd, method: :final, low: nil, high: nil, note: nil)
     elsif forecast
-      Estimate.new(amount: (mtd + forecast.mean).round(2), method: :forecast,
-                   low: forecast.low && (mtd + forecast.low).round(2),
-                   high: forecast.high && (mtd + forecast.high).round(2), note: nil)
+      # AWS's forecast for the current month already includes the month to
+      # date, so it is the estimated total as is (findings log #4). It can't
+      # end below what's already been spent.
+      Estimate.new(amount: [forecast.mean, mtd].max, method: :forecast,
+                   low: forecast.low && [forecast.low, mtd].max,
+                   high: forecast.high && [forecast.high, mtd].max, note: nil)
     else
       projected = (mtd / period.day_number * period.days_in_period).round(2)
       Estimate.new(amount: projected, method: :projection, low: nil, high: nil, note: explorer_result.forecast_note)
