@@ -1,6 +1,9 @@
 # Claude Code local (per-machine) settings
 .claude/settings.local.json
 
+# Private project plan and status (never published)
+docs/PLAN.md
+
 # macOS
 .DS_Store
 

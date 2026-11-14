@@ -1,0 +1,22 @@
+# Exceptions for the Trivy gate in .github/workflows/container-scan.yml.
+#
+# Add an entry only when a finding can't be fixed right now. Every entry needs:
+#   id          the CVE or GHSA ID
+#   statement   why it's accepted, and who decided
+#   expired_at  when the exception stops applying (the check fails again after this date)
+#
+# Add or change entries only through a PR, and log them in docs/findings-log.md.
+#
+# Terraform misconfiguration exceptions (trivy-config job) are NOT kept here.
+# They're inline comments directly above the resource in infra/*.tf
+# (#trivy:ignore:<ID>, optionally :exp:<date>), so each one covers exactly one
+# resource and sits next to the code it excuses. Find them all with:
+#   grep -rn "trivy:ignore" infra/
+#
+# Example:
+# vulnerabilities:
+#   - id: CVE-2026-12345
+#     statement: "No fixed package in Debian yet; app doesn't use the affected feature. Decided by the repo owner (mt-securesail)."
+#     expired_at: 2026-12-31
+
+vulnerabilities: []

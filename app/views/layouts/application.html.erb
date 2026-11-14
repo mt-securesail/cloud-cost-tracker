@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cloud Cost Tracker</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%# Styles live here, allowed by the CSP nonce (config/initializers/content_security_policy.rb).
+        Inline style="..." attributes would be blocked by the CSP. %>
+    <style nonce="<%= content_security_policy_nonce %>">
+      body { font-family: -apple-system, sans-serif; max-width: 640px; margin: 4rem auto; color: #1a1a1a; }
+    </style>
+  </head>
+  <body>
+    <%= yield %>
+  </body>
+</html>

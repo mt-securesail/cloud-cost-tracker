@@ -1,4 +1,4 @@
-# AWS Cost Tracker: Product Requirements Document
+# Cloud Cost Tracker: Product Requirements Document
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@
 
 ## 1. Summary
 
-AWS Cost Tracker is a small, single-user web dashboard that shows how much the AWS account has spent in the current
+Cloud Cost Tracker is a small, single-user web dashboard that shows how much the AWS account has spent in the current
 billing period, what the whole period is likely to cost, and which services the money is going to. It is meant to stay
 open in a browser window while working on other AWS projects (mainly the `rails-ecs-demo` training app), so that
 runaway or forgotten resources are noticed quickly.
@@ -91,6 +91,7 @@ Priority: **Must** = v1 is not done without it. **Should** = planned for v1, can
 | L1 | **"Currently running" panel**: list billable resources alive right now (EC2 instances, RDS instances, NAT gateways, load balancers, ECS services with running tasks, Elastic IPs), without pricing them. This is the near-real-time "did I forget to tear something down" signal. | Could (phase 4) |
 | L2 | **Cognito login at the ALB** (an `authenticate-cognito` listener rule) in addition to the IP allowlist. | Could (phase 4) |
 | L3 | A daily cost trend chart for the current month. | Could |
+| L4 | **Other cost sources** (for example GCP, Azure, Okta, Salesforce). The app is named "Cloud Cost Tracker" so it can grow beyond AWS. Version 1 reads AWS only. | Could |
 
 ## 5. Data sources and freshness
 
@@ -176,11 +177,11 @@ Mirrors `rails-ecs-demo/infra` file by file, with these differences:
 
 | Area | Requirement |
 |---|---|
-| Naming | `project_name = "aws-cost-tracker"`; region `us-east-1` (also where billing metrics and the Cost Explorer endpoint live). |
+| Naming | `project_name = "cloud-cost-tracker"`; region `us-east-1` (also where billing metrics and the Cost Explorer endpoint live). |
 | GitHub OIDC provider | The account **already has** the `token.actions.githubusercontent.com` OIDC provider (created by `rails-ecs-demo`). Only one can exist per account, so this project must look it up with a `data` source and **must not** create it. This project creates only its own deploy role, trusted only for this repo's subject prefix. |
 | ALB subnets | Place the ALB (and task) in **exactly 2** default-VPC subnets in different AZs, not all of them. This cuts the ALB's public IPv4 charges (about $3.60/month per address). |
-| Domain and DNS | A general-use **training domain**, **`example-apps.com`**, is registered in **Route 53**, which creates the hosted zone. Terraform looks up the zone with a `data` source (it does not create or own it, so other training projects can add their own subdomains later), and manages only this app's record: an alias `A`/`AAAA` record for **`aws-cost-est.<domain>`** pointing to the ALB. The domain name is a variable. The weather app from `rails-ecs-demo` will use its own, separate domain and is not part of this one. |
-| TLS | ACM certificate for `aws-cost-est.<domain>`, DNS-validated by Terraform. HTTPS listener on 443 with a TLS 1.2/1.3 policy (`ELBSecurityPolicy-TLS13-1-2-2021-06` or newer). Port 80 listener only redirects to HTTPS. |
+| Domain and DNS | A general-use **training domain**, **`example-apps.com`**, is registered in **Route 53**, which creates the hosted zone. Terraform looks up the zone with a `data` source (it does not create or own it, so other training projects can add their own subdomains later), and manages only this app's record: an alias `A` record for **`cloud-cost-est.<domain>`** pointing to the ALB (IPv4 only; IPv6 would need a dual-stack ALB). The domain name is a variable. The weather app from `rails-ecs-demo` will use its own, separate domain and is not part of this one. |
+| TLS | ACM certificate for `cloud-cost-est.<domain>`, DNS-validated by Terraform. HTTPS listener on 443 with a TLS 1.2/1.3 policy (`ELBSecurityPolicy-TLS13-1-2-2021-06` or newer). Port 80 listener only redirects to HTTPS. |
 | Access | ALB security group allows 80/443 only from `allowed_cidrs` (your IP), as in the training app. |
 | On/off switch | Variable `app_enabled` (default `true`). When `false`, Terraform removes the ALB, listeners, target group, ECS service, and DNS record. It keeps ECR, IAM roles, the cluster, the log group, the SSM parameter, the ACM certificate, and the task definition. Idle cost is then a few cents a month plus the $0.50 hosted zone. |
 | Re-enable | When switched back on, the recreated ECS service must use the **latest** task definition revision in the family (looked up with a `data` source), not Terraform's placeholder revision, so the app comes back on the last deployed image without a redeploy. |
@@ -199,7 +200,10 @@ Same structure as `rails-ecs-demo`:
 - `dependency-review.yml`.
 - **New: on/off awareness.** If the ECS service does not exist (`app_enabled = false`), CD still builds and pushes the
   image, skips the ECS update with a clear notice, and succeeds.
-- **New: `zap` job** (section 8.2).
+- `zap.yml`: ZAP baseline scan of the app running on the GitHub runner, on every PR (required check). Copied from
+  `rails-ecs-demo` (section 8.2, S5).
+- `cd.yml` also gets a `zap-production` job after `deploy`, using a separate scan role (section 8.2, S6). Skipped when
+  `app_enabled = false`.
 
 ## 8. Security requirements
 
@@ -207,8 +211,8 @@ Same structure as `rails-ecs-demo`:
 
 | Control | Detail |
 |---|---|
-| Public repo | `mt-securesail/aws-cost-tracker` (public, so CodeQL and secret scanning are free). No account IDs, domain-specific secrets, `terraform.tfvars`, or state committed. |
-| Branch ruleset `protect-main` | Require PR; block force-push and deletion; required checks: `test`, `brakeman`, `dependency-review`, `trivy`, `grype`, `trivy-config`; code scanning gate on CodeQL (high or higher). |
+| Public repo | `mt-securesail/cloud-cost-tracker` (public, so CodeQL and secret scanning are free). No account IDs, domain-specific secrets, `terraform.tfvars`, or state committed. |
+| Branch ruleset `protect-main` | Require PR; block force-push and deletion; required checks: `test`, `brakeman`, `dependency-review`, `trivy`, `grype`, `trivy-config`, `zap`; code scanning gate on CodeQL (high or higher). |
 | Secret scanning + push protection | On. |
 | Dependabot | Alerts and security updates on; `dependabot.yml` for `docker` and `github-actions` with grouping and a 7-day cooldown. Add `bundler` version updates too. |
 | CodeQL | Default setup, languages Ruby and GitHub Actions. |
@@ -216,7 +220,7 @@ Same structure as `rails-ecs-demo`:
 | Container scanning | Trivy and Grype gates on fixable critical/high; exceptions in `.trivyignore.yaml` / `.grype.yaml` with reason and expiry. |
 | IaC scanning | Trivy config on `infra/` and `Dockerfile`; inline exceptions with reason, decider, date, and review date. |
 | Supply chain | Every action pinned to a full commit SHA with a version comment; scanners downloaded at pinned versions with checksum verification. |
-| No stored AWS keys | GitHub → AWS via OIDC only; repo variables, not secrets. |
+| No stored AWS keys | GitHub → AWS via OIDC only. No AWS keys anywhere in GitHub. Role ARNs are GitHub *secrets* (only because they contain the account ID, which public logs must not show); everything else is repo variables. |
 | Least-privilege IAM | Deploy role scoped to this project's ECR repo and roles; task role read-only billing (section 7.2). |
 | Secrets | `SECRET_KEY_BASE` in SSM Parameter Store (SecureString), injected by ECS. |
 | `CLAUDE.md` | Same "how to talk to me" and safety rules (never push/merge to `main` or `terraform apply` without asking, experiments on branches, fake secrets only, public repo). |
@@ -228,12 +232,15 @@ Same structure as `rails-ecs-demo`:
 |---|---|---|
 | S1 | **HTTPS only**, valid ACM certificate, HTTP→HTTPS redirect at the ALB. Removes the training app's HTTP listener exception. | Must |
 | S2 | Rails `config.assume_ssl = true` and `config.force_ssl = true` (HSTS on), with `/up` excluded from the redirect so ALB health checks work. | Must |
-| S3 | `config.hosts` restricted to `aws-cost-est.<domain>` (plus the `/up` health check exclusion). | Must |
-| S4 | Strict **Content Security Policy**: `default-src 'self'`, no inline scripts or styles, no third-party origins. Plus Rails' default security headers. | Must |
-| S5 | **OWASP ZAP baseline scan** after each deploy (`zap` job in `cd.yml`, ZAP container pinned by digest). Because the ALB is IP-locked, the job temporarily adds the runner's own `/32` to the ALB security group, scans `https://aws-cost-est.<domain>`, then removes the rule in an `always()` step. The deploy role gets `ec2:AuthorizeSecurityGroupIngress`/`RevokeSecurityGroupIngress` scoped to that one security group. Findings fail the job and go to the findings log. Skipped when `app_enabled = false`. | Must |
-| S6 | ZAP rule configuration file (`.zap/rules.tsv`) committed, with each ignored rule's reason, matching the exception style used for Trivy. | Should |
-| S7 | Logs never contain full AWS API responses or request credentials; log only counts, timings, and error classes. | Must |
-| S8 | The `rails-ecs-demo` ZAP gap: once S5 works here, port it back to the training repo (its guide plans ZAP in section 11 but has no workflow yet). | Could |
+| S3 | `config.hosts` restricted to `cloud-cost-est.<domain>` (plus the `/up` health check exclusion). | Must |
+| S4 | **Security headers from day one**, copied from `rails-ecs-demo` (its rails-ecs-demo/PR #20, which fixed that app's ZAP findings): strict Content Security Policy (`default-src 'none'`, then only `'self'` for scripts, styles, images, fonts, and `connect-src`; `object-src`/`base-uri` `'none'`; `frame-ancestors 'none'`; per-request nonce for the page's `<style>` block; no inline scripts, no `unsafe-inline`/`unsafe-eval`, no third-party origins); `Permissions-Policy` disabling unused browser features; cross-origin isolation headers (COEP `require-corp`, COOP and CORP `same-origin`); `Cache-Control: no-store` on every response via middleware; unknown paths routed to an `ErrorsController#not_found` page so 404s also carry the headers. | Must |
+| S5 | **ZAP baseline scan on every PR** (`zap.yml`, required check `zap`), copied from `rails-ecs-demo`: builds the image, runs it on the runner with a throwaway `SECRET_KEY_BASE`, and scans it with the official ZAP image pinned by digest. Passive only (crawl and inspect responses, no attack traffic). Nothing leaves the runner, and AWS isn't involved. Results go to the job summary and a `zap-report` artifact (no SARIF; ZAP findings are URLs, not code lines). For this app, the scan container also needs: background AWS fetching turned off (an env var such as `COST_FETCH_ENABLED=false`) so the runner never calls AWS, and the scan's hostname allowed through S3 (an env var such as `ALLOWED_HOSTS`). `assume_ssl` (S2) means plain HTTP inside the runner is treated as HTTPS, so HSTS and the redirect logic are still exercised. | Must |
+| S6 | **ZAP scan of production after each deploy** (`zap-production` job in `cd.yml`), copied from `rails-ecs-demo`. It uses a **separate scan role** (`infra/zap_scan.tf`) that trusts only workflow runs on `main` (exact OIDC subject ending `:ref:refs/heads/main`), has a 1-hour maximum session, and can **only** add/remove inbound rules on the ALB security group. It can't deploy, and the deploy role can't open the firewall. The job adds the runner's IP (`/32`, port **443**, description `zap-scan-run-<run id>`) to the ALB security group, scans `https://cloud-cost-est.<domain>`, then always removes the rule (even on failure or cancel). Terraform removes leftover rules on the next apply. Skipped when `app_enabled = false`. | Must |
+| S7 | **`.zap/rules.tsv`** shared by both scans, in the training repo's format. Start with that repo's already-fixed rules set to `FAIL` (10038 CSP, 10063 Permissions Policy, 90004 site isolation), since S4 implements them from the first commit, and 10049 (non-storable content) as `IGNORE` with its reason. Every `IGNORE` has a comment with the reason, the decider (GitHub username, not a real name), and a review date, and is logged in `docs/findings-log.md`. | Must |
+| S8 | **Header regression tests** (`test/security/security_headers_test.rb`, copied and adapted), checking every header on `/`, `/up`, `/summary.json`, and a 404. They run in the required `test` job, so a change that drops a header can't merge. | Must |
+| S9 | Logs never contain full AWS API responses or request credentials; log only counts, timings, and error classes. | Must |
+| S10 | **Public Actions logs:** the repo is public, so its workflow logs are too. Mask the AWS account ID in every job that assumes an AWS role, and never print personal data (IP addresses other than the temporary runner's, emails, names). | Must |
+| S11 | Keep the ZAP setup in step with `rails-ecs-demo`: when either repo improves its ZAP workflows, rules, or headers, port the change to the other. | Could |
 
 ### 8.3 Data sensitivity
 
@@ -271,10 +278,10 @@ Prices change. Verify current pricing before relying on these figures.
 
 ### Phase 0: Account and domain preparation (one-time, mostly AWS Management Console)
 1. Register a general-use training domain in Route 53 (creates the hosted zone). The app will live at
-   `aws-cost-est.<domain>`.
+   `cloud-cost-est.<domain>`.
 2. Turn on "Receive CloudWatch billing alerts" in Billing preferences.
 3. Confirm Cost Explorer is enabled (first-time enablement can take up to 24 h to show data).
-4. Create the public GitHub repo `aws-cost-tracker` and get its OIDC subject prefix.
+4. Create the public GitHub repo `cloud-cost-tracker` and get its OIDC subject prefix.
 5. Deferred (optional): install Docker Desktop for local image builds, scans, and running the production container.
    Not required, because GitHub Actions builds and scans every image. Revisit if waiting on CI round-trips becomes a
    problem.
@@ -282,7 +289,7 @@ Prices change. Verify current pricing before relying on these figures.
 ### Phase 1: Pipeline and security skeleton
 - A Rails "hello" page with `/up`, Dockerfile, Terraform (including HTTPS, domain, 2-subnet ALB, `app_enabled`), and all
   workflows and settings from section 8.1, *before* any cost features.
-- Exit criteria: a PR shows every required check; merging deploys to `https://aws-cost-est.<domain>`; HTTP redirects to HTTPS;
+- Exit criteria: a PR shows every required check; merging deploys to `https://cloud-cost-est.<domain>`; HTTP redirects to HTTPS;
   switching `app_enabled` off and on works and the URL comes back with the latest image.
 
 ### Phase 2: Dashboard
@@ -290,10 +297,10 @@ Prices change. Verify current pricing before relying on these figures.
 - Exit criteria: section 12 acceptance criteria pass.
 
 ### Phase 3: Dynamic scanning and hardening
-- S1-S7, ZAP baseline green (or findings logged and fixed), findings log up to date.
+- S1-S10 in place; both ZAP scans (PR and production) green, or findings logged and fixed; findings log up to date.
 
 ### Phase 4 (optional)
-- L1 "Currently running" panel, L2 Cognito login, L3 trend chart, S8 port ZAP back to the training repo.
+- L1 "Currently running" panel, L2 Cognito login, L3 trend chart, S11 keep ZAP aligned with the training repo.
 
 ## 12. Acceptance criteria (v1)
 
@@ -314,7 +321,7 @@ Prices change. Verify current pricing before relying on these figures.
 | Item | Notes |
 |---|---|
 | Workloads in the management account | AWS recommends keeping the Organization management account free of workloads and running apps in member accounts. Acceptable for a personal learning setup. If the training app later moves to a member account, this app can stay in the management account (where org-wide cost data lives) without changes. |
-| Domain name | `example-apps.com` (registration submitted 2026-11-12), so the app URL is `https://aws-cost-est.example-apps.com`. It is only a Terraform variable, and nothing else depends on it. Other training projects may add subdomains later. The production weather app uses its own separate domain. |
+| Domain name | `example-apps.com` (registration submitted 2026-11-12), so the app URL is `https://cloud-cost-est.example-apps.com`. It is only a Terraform variable, and nothing else depends on it. Other training projects may add subdomains later. The production weather app uses its own separate domain. |
 | Cost data lag | Inherent in AWS (section 5). L1 is the mitigation if the lag proves frustrating. |
 | Source disagreement | CloudWatch vs. Cost Explorer differences (section 6.5) may confuse at first. Labeling is the mitigation. |
 | Home IP changes | The IP allowlist breaks when your ISP changes your address. Update `allowed_cidrs` and run `terraform apply`. L2 (Cognito) would allow loosening the allowlist later. |

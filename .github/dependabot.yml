@@ -1,0 +1,45 @@
+# Dependabot version updates. (Security updates for gems are turned on
+# separately in the repo settings.)
+version: 2
+updates:
+  # Keeps the pinned base image digest in the Dockerfile current.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    # No automatic major Ruby upgrades (e.g. 3.x -> 4.x). A major upgrade must
+    # change the Dockerfile, .ruby-version and ci.yml together, so the tests
+    # run on the same Ruby as production; do it as a planned PR. Digest and
+    # minor updates still come through. (Findings log #16.)
+    ignore:
+      - dependency-name: ruby
+        update-types: ["version-update:semver-major"]
+
+  # Keeps the GitHub Actions in .github/workflows/ current. Each action is
+  # pinned to a full commit ID (with a "# vX.Y.Z" comment), so a moved or
+  # hijacked tag can't change what runs; Dependabot updates both together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # One PR for all action updates (each merge to main is a deploy).
+    groups:
+      actions:
+        patterns: ["*"]
+    # Wait a week after a release before proposing it, so a malicious release
+    # is likely to be found and pulled before it reaches this repo.
+    cooldown:
+      default-days: 7
+
+  # Keeps Ruby gems (Gemfile.lock) current. Security fixes come immediately
+  # through Dependabot security updates (repo settings); these are the routine
+  # version bumps, grouped into one weekly PR so each merge is one deploy.
+  - package-ecosystem: bundler
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gems:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
