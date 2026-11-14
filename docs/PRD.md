@@ -199,7 +199,10 @@ Same structure as `rails-ecs-demo`:
 - `dependency-review.yml`.
 - **New: on/off awareness.** If the ECS service does not exist (`app_enabled = false`), CD still builds and pushes the
   image, skips the ECS update with a clear notice, and succeeds.
-- **New: `zap` job** (section 8.2).
+- `zap.yml`: ZAP baseline scan of the app running on the GitHub runner, on every PR (required check). Copied from
+  `rails-ecs-demo` (section 8.2, S5).
+- `cd.yml` also gets a `zap-production` job after `deploy`, using a separate scan role (section 8.2, S6). Skipped when
+  `app_enabled = false`.
 
 ## 8. Security requirements
 
@@ -208,7 +211,7 @@ Same structure as `rails-ecs-demo`:
 | Control | Detail |
 |---|---|
 | Public repo | `mt-securesail/aws-cost-tracker` (public, so CodeQL and secret scanning are free). No account IDs, domain-specific secrets, `terraform.tfvars`, or state committed. |
-| Branch ruleset `protect-main` | Require PR; block force-push and deletion; required checks: `test`, `brakeman`, `dependency-review`, `trivy`, `grype`, `trivy-config`; code scanning gate on CodeQL (high or higher). |
+| Branch ruleset `protect-main` | Require PR; block force-push and deletion; required checks: `test`, `brakeman`, `dependency-review`, `trivy`, `grype`, `trivy-config`, `zap`; code scanning gate on CodeQL (high or higher). |
 | Secret scanning + push protection | On. |
 | Dependabot | Alerts and security updates on; `dependabot.yml` for `docker` and `github-actions` with grouping and a 7-day cooldown. Add `bundler` version updates too. |
 | CodeQL | Default setup, languages Ruby and GitHub Actions. |
@@ -229,11 +232,14 @@ Same structure as `rails-ecs-demo`:
 | S1 | **HTTPS only**, valid ACM certificate, HTTP→HTTPS redirect at the ALB. Removes the training app's HTTP listener exception. | Must |
 | S2 | Rails `config.assume_ssl = true` and `config.force_ssl = true` (HSTS on), with `/up` excluded from the redirect so ALB health checks work. | Must |
 | S3 | `config.hosts` restricted to `aws-cost-est.<domain>` (plus the `/up` health check exclusion). | Must |
-| S4 | Strict **Content Security Policy**: `default-src 'self'`, no inline scripts or styles, no third-party origins. Plus Rails' default security headers. | Must |
-| S5 | **OWASP ZAP baseline scan** after each deploy (`zap` job in `cd.yml`, ZAP container pinned by digest). Because the ALB is IP-locked, the job temporarily adds the runner's own `/32` to the ALB security group, scans `https://aws-cost-est.<domain>`, then removes the rule in an `always()` step. The deploy role gets `ec2:AuthorizeSecurityGroupIngress`/`RevokeSecurityGroupIngress` scoped to that one security group. Findings fail the job and go to the findings log. Skipped when `app_enabled = false`. | Must |
-| S6 | ZAP rule configuration file (`.zap/rules.tsv`) committed, with each ignored rule's reason, matching the exception style used for Trivy. | Should |
-| S7 | Logs never contain full AWS API responses or request credentials; log only counts, timings, and error classes. | Must |
-| S8 | The `rails-ecs-demo` ZAP gap: once S5 works here, port it back to the training repo (its guide plans ZAP in section 11 but has no workflow yet). | Could |
+| S4 | **Security headers from day one**, copied from `rails-ecs-demo` (its rails-ecs-demo/PR #20, which fixed that app's ZAP findings): strict Content Security Policy (`default-src 'none'`, then only `'self'` for scripts, styles, images, fonts, and `connect-src`; `object-src`/`base-uri` `'none'`; `frame-ancestors 'none'`; per-request nonce for the page's `<style>` block; no inline scripts, no `unsafe-inline`/`unsafe-eval`, no third-party origins); `Permissions-Policy` disabling unused browser features; cross-origin isolation headers (COEP `require-corp`, COOP and CORP `same-origin`); `Cache-Control: no-store` on every response via middleware; unknown paths routed to an `ErrorsController#not_found` page so 404s also carry the headers. | Must |
+| S5 | **ZAP baseline scan on every PR** (`zap.yml`, required check `zap`), copied from `rails-ecs-demo`: builds the image, runs it on the runner with a throwaway `SECRET_KEY_BASE`, and scans it with the official ZAP image pinned by digest. Passive only (crawl and inspect responses, no attack traffic). Nothing leaves the runner, and AWS isn't involved. Results go to the job summary and a `zap-report` artifact (no SARIF; ZAP findings are URLs, not code lines). For this app, the scan container also needs: background AWS fetching turned off (an env var such as `COST_FETCH_ENABLED=false`) so the runner never calls AWS, and the scan's hostname allowed through S3 (an env var such as `ALLOWED_HOSTS`). `assume_ssl` (S2) means plain HTTP inside the runner is treated as HTTPS, so HSTS and the redirect logic are still exercised. | Must |
+| S6 | **ZAP scan of production after each deploy** (`zap-production` job in `cd.yml`), copied from `rails-ecs-demo`. It uses a **separate scan role** (`infra/zap_scan.tf`) that trusts only workflow runs on `main` (exact OIDC subject ending `:ref:refs/heads/main`), has a 1-hour maximum session, and can **only** add/remove inbound rules on the ALB security group. It can't deploy, and the deploy role can't open the firewall. The job adds the runner's IP (`/32`, port **443**, description `zap-scan-run-<run id>`) to the ALB security group, scans `https://aws-cost-est.<domain>`, then always removes the rule (even on failure or cancel). Terraform removes leftover rules on the next apply. Skipped when `app_enabled = false`. | Must |
+| S7 | **`.zap/rules.tsv`** shared by both scans, in the training repo's format. Start with that repo's already-fixed rules set to `FAIL` (10038 CSP, 10063 Permissions Policy, 90004 site isolation), since S4 implements them from the first commit, and 10049 (non-storable content) as `IGNORE` with its reason. Every `IGNORE` has a comment with the reason, the decider (GitHub username, not a real name), and a review date, and is logged in `docs/findings-log.md`. | Must |
+| S8 | **Header regression tests** (`test/security/security_headers_test.rb`, copied and adapted), checking every header on `/`, `/up`, `/summary.json`, and a 404. They run in the required `test` job, so a change that drops a header can't merge. | Must |
+| S9 | Logs never contain full AWS API responses or request credentials; log only counts, timings, and error classes. | Must |
+| S10 | **Public Actions logs:** the repo is public, so its workflow logs are too. Mask the AWS account ID in every job that assumes an AWS role, and never print personal data (IP addresses other than the temporary runner's, emails, names). | Must |
+| S11 | Keep the ZAP setup in step with `rails-ecs-demo`: when either repo improves its ZAP workflows, rules, or headers, port the change to the other. | Could |
 
 ### 8.3 Data sensitivity
 
@@ -290,10 +296,10 @@ Prices change. Verify current pricing before relying on these figures.
 - Exit criteria: section 12 acceptance criteria pass.
 
 ### Phase 3: Dynamic scanning and hardening
-- S1-S7, ZAP baseline green (or findings logged and fixed), findings log up to date.
+- S1-S10 in place; both ZAP scans (PR and production) green, or findings logged and fixed; findings log up to date.
 
 ### Phase 4 (optional)
-- L1 "Currently running" panel, L2 Cognito login, L3 trend chart, S8 port ZAP back to the training repo.
+- L1 "Currently running" panel, L2 Cognito login, L3 trend chart, S11 keep ZAP aligned with the training repo.
 
 ## 12. Acceptance criteria (v1)
 
