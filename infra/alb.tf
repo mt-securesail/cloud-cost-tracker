@@ -27,6 +27,12 @@ resource "aws_lb_target_group" "this" {
   vpc_id      = data.aws_vpc.default.id
   target_type = "ip"
 
+  # How long a departing container keeps receiving in-flight requests before
+  # it's removed. AWS's default is 300 s; this app's requests take well under
+  # a second, so 30 s is plenty. It shortens every deploy and the app_enabled
+  # switch-off (which took ~8 min at 300 s).
+  deregistration_delay = 30
+
   health_check {
     path                = "/up"
     healthy_threshold   = 2
