@@ -1,7 +1,9 @@
-<%# Reloads the page every 60 s (served from memory; never calls AWS). A later
-    PR replaces this with JavaScript that updates the numbers in place. %>
+<%# Reloads the page every 5 minutes (served from memory; never calls AWS), to
+    pick up new CloudWatch values and keep the "ago" times current. AWS data
+    changes only a few times a day, so more often adds nothing. A later PR
+    replaces this with JavaScript that updates the numbers in place. %>
 <% content_for :head do %>
-  <meta http-equiv="refresh" content="60">
+  <meta http-equiv="refresh" content="300">
 <% end %>
 <% s = @summary %>
 <% estimate = s.estimated_total %>
@@ -13,7 +15,7 @@
       Costs last updated at <strong><%= format_time(s.last_updated_at) %></strong>
       <span class="muted">(<%= age(s.last_updated_at, s.now) %>)</span>
     <% else %>
-      Costs not loaded yet. The first fetch runs when the app starts; this page reloads every minute.
+      Costs not loaded yet. The first fetch runs when the app starts; this page reloads every 5 minutes.
     <% end %>
   </p>
   <ul class="as-of">
