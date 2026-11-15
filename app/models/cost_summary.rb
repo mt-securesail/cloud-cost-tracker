@@ -57,12 +57,14 @@ class CostSummary
     if period.last_day?
       Estimate.new(amount: mtd, method: :final, low: nil, high: nil, note: nil)
     elsif forecast
-      # AWS's forecast for the current month already includes the month to
-      # date, so it is the estimated total as is (findings log #4). It can't
-      # end below what's already been spent.
-      Estimate.new(amount: [forecast.mean, mtd].max, method: :forecast,
-                   low: forecast.low && [forecast.low, mtd].max,
-                   high: forecast.high && [forecast.high, mtd].max, note: nil)
+      # Costs through yesterday plus AWS's daily forecast from today to the
+      # end of the month (findings log #5; the daily forecast doesn't include
+      # the month to date, unlike the monthly one in findings log #4). It
+      # can't end below what's already been spent.
+      base = explorer_result.month_to_date_before_today
+      floor = ->(amount) { amount && [base + amount, mtd].max }
+      Estimate.new(amount: floor.call(forecast.mean), method: :forecast,
+                   low: floor.call(forecast.low), high: floor.call(forecast.high), note: nil)
     else
       projected = (mtd / period.day_number * period.days_in_period).round(2)
       Estimate.new(amount: projected, method: :projection, low: nil, high: nil, note: explorer_result.forecast_note)
@@ -91,6 +93,12 @@ class CostSummary
     return nil unless explorer_result
 
     ServiceBreakdown.new(current: explorer_result.by_service, history: history_result&.months)
+  end
+
+  # AWS Billing and Cost Management's month-end forecast (monthly model),
+  # shown for comparison; refreshed with the daily history fetch.
+  def billing_forecast
+    history_result&.billing_forecast
   end
 
   def history_as_of

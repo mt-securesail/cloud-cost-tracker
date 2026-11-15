@@ -6,9 +6,10 @@ class MonthlyHistoryTest < ActiveSupport::TestCase
     { keys: [name], metrics: { "UnblendedCost" => { amount: amount, unit: "USD" } } }
   end
 
-  def fetch(results, now:)
+  def fetch(results, now:, forecast: { total: { amount: "199.489", unit: "USD" } })
     client = Aws::CostExplorer::Client.new(stub_responses: true)
     client.stub_responses(:get_cost_and_usage, results_by_time: results)
+    client.stub_responses(:get_cost_forecast, forecast)
     [CostSources::MonthlyHistory.new(client: client, clock: -> { now }).fetch, client]
   end
 
@@ -22,7 +23,7 @@ class MonthlyHistoryTest < ActiveSupport::TestCase
     params = client.api_requests.first[:params]
     assert_equal({ start: "2026-08-01", end: "2026-11-01" }, params[:time_period])
     assert_equal "MONTHLY", params[:granularity]
-    assert_equal 1, client.api_requests.size
+    assert_equal 2, client.api_requests.size # history + Billing's forecast
 
     assert_equal Date.new(2026, 11, 1), result.period_start
     assert_equal [Date.new(2026, 8, 1), Date.new(2026, 9, 1), Date.new(2026, 10, 1)], result.months.keys
@@ -38,5 +39,25 @@ class MonthlyHistoryTest < ActiveSupport::TestCase
   test "all 3 months are present even if AWS returns none" do
     result, = fetch([], now: Time.utc(2026, 11, 14))
     assert_equal 3, result.months.size
+  end
+
+  test "includes AWS Billing's monthly forecast for this month" do
+    result, client = fetch([], now: Time.utc(2026, 11, 15, 3))
+    params = client.api_requests.find { |r| r[:operation_name] == :get_cost_forecast }[:params]
+    assert_equal({ start: "2026-11-15", end: "2026-12-01" }, params[:time_period])
+    assert_equal "MONTHLY", params[:granularity]
+    assert_equal BigDecimal("199.49"), result.billing_forecast
+  end
+
+  test "a Billing forecast failure doesn't fail the history" do
+    result, = fetch([], now: Time.utc(2026, 11, 2), forecast: "DataUnavailableException")
+    assert_nil result.billing_forecast
+    assert_equal 3, result.months.size
+  end
+
+  test "no Billing forecast request on the last day" do
+    result, client = fetch([], now: Time.utc(2026, 11, 30, 12))
+    assert_nil result.billing_forecast
+    assert_equal 1, client.api_requests.size
   end
 end

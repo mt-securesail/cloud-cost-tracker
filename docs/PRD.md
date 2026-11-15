@@ -103,8 +103,8 @@ AWS cost data is **not real time**. Usage is metered by each service and process
 | Cost Explorer `GetCostAndUsage` | F4 month-to-date part, F6, F7, F8 | At least daily; usually a few times a day | $0.01 per request |
 | Cost Explorer `GetCostForecast` | F4 forecast part | Same as above | $0.01 per request |
 
-**Expected Cost Explorer spend:** about 2 requests every 6 h plus 1-2 per day, or about **270-300 requests a month,
-around $3/month**. Task restarts add about $0.03 each.
+**Expected Cost Explorer spend:** about 2 requests every 6 h plus 2 per day, or about **300-330 requests a month,
+around $3/month**. Task restarts add about $0.04 each.
 
 **"As of" times:**
 - CloudWatch: the timestamp of the latest datapoint returned. This is when AWS last updated the number, not when the app
@@ -130,13 +130,17 @@ around $3/month**. Task restarts add about $0.03 each.
 
 ### 6.3 Estimated total for the period (F4, F10)
 
-- Month-to-date: `GetCostAndUsage`, `TimePeriod` = period start to tomorrow (UTC), `Granularity=MONTHLY`,
-  `Metrics=UnblendedCost`, `GroupBy=SERVICE`. Sum the groups. The same call feeds F6.
+- Month-to-date: `GetCostAndUsage`, `TimePeriod` = period start to tomorrow (UTC), `Granularity=DAILY`,
+  `Metrics=UnblendedCost`, `GroupBy=SERVICE`. Sum the groups for month to date and F6; sum the days before today
+  separately ("through yesterday").
 - Forecast: `GetCostForecast`, `TimePeriod` = today (UTC) to period end, `Metric=UNBLENDED_COST`,
-  `Granularity=MONTHLY`. For the current month, AWS returns the forecast for the **whole month, actual costs to date
-  included** (the same figure as "forecasted month end costs" in Billing and Cost Management). Estimated total =
-  forecast mean, never less than month-to-date. Do **not** add month-to-date to it (findings log #4). On the last day
-  of the month, estimated total = month-to-date.
+  `Granularity=DAILY`. The daily forecast follows the recent day-by-day pattern and covers **only today to the period
+  end**. Estimated total = month to date through yesterday + forecast mean, never less than month-to-date (findings
+  log #5). On the last day of the month, estimated total = month-to-date.
+- For comparison, the page also shows AWS Billing's forecast: `GetCostForecast` with `Granularity=MONTHLY`, fetched
+  once a day with the history (6.4). For the current month it returns the **whole month, actual costs included**
+  (findings log #4), and it extrapolates month-over-month growth, so it can be far higher while spending is rising
+  (2026-11-15: $199 vs about $55).
 - Fallback if the forecast call fails or AWS reports insufficient data: linear projection = month-to-date ÷ days
   elapsed × days in month, labeled **"Projection (simple)"**.
 - The forecast's prediction interval (low/high) may be shown in small text. Should, not Must.
@@ -144,7 +148,8 @@ around $3/month**. Task restarts add about $0.03 each.
 ### 6.4 Comparison months (F7)
 
 - One `GetCostAndUsage` call: `TimePeriod` = first day of the month 3 months ago to the current period start,
-  `Granularity=MONTHLY`, `Metrics=UnblendedCost`, `GroupBy=SERVICE`.
+  `Granularity=MONTHLY`, `Metrics=UnblendedCost`, `GroupBy=SERVICE`. The same daily fetch makes one `GetCostForecast`
+  call for AWS Billing's monthly forecast (6.3).
 - The top 10 services are chosen by **current month-to-date** cost. Services that only appear in earlier months fall into
   "Other". A service with no cost in a month shows "-".
 
