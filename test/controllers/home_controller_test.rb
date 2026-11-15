@@ -34,7 +34,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     now = Time.now.utc
     CostStore.record_success(:cloudwatch, CostSources::CloudWatchCharges::Result.new(amount: BigDecimal("31.46"), as_of: now - 2.hours))
     CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
-      month_to_date: BigDecimal("1234.5"), by_service: {}, forecast: nil, forecast_note: :insufficient_data
+      month_to_date: BigDecimal("1234.5"), by_service: {}, forecast: nil, month_to_date_before_today: BigDecimal("0"), forecast_note: :insufficient_data
     ))
 
     get root_url
@@ -49,7 +49,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     by_service = { "Amazon Elastic Load Balancing" => BigDecimal("9.10"),
                    "Claude Sonnet 4.5 (Amazon Bedrock Edition)" => BigDecimal("1.25") }
     CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
-      month_to_date: BigDecimal("10.35"), by_service: by_service, forecast: nil, forecast_note: nil
+      month_to_date: BigDecimal("10.35"), by_service: by_service, forecast: nil, month_to_date_before_today: BigDecimal("0"), forecast_note: nil
     ))
     get root_url
     assert_select "#by-service tbody tr", 2
@@ -59,7 +59,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
 
   test "service names from AWS are shown as text, never as HTML" do
     CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
-      month_to_date: BigDecimal("1"), by_service: { "<script>alert(1)</script>" => BigDecimal("1") }, forecast: nil, forecast_note: nil
+      month_to_date: BigDecimal("1"), by_service: { "<script>alert(1)</script>" => BigDecimal("1") }, forecast: nil, month_to_date_before_today: BigDecimal("0"), forecast_note: nil
     ))
     get root_url
     assert_no_match "<script>alert(1)</script>", response.body
@@ -89,7 +89,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     by_service = { "Amazon Route 53" => BigDecimal("1.00"), "Claude Haiku 4.5 (Amazon Bedrock Edition)" => BigDecimal("0.004") }
     CostStore.record_success(:cloudwatch, CostSources::CloudWatchCharges::Result.new(amount: BigDecimal("33.48"), as_of: Time.utc(2026, 11, 14, 18, 6)))
     CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
-      month_to_date: BigDecimal("1.00"), by_service: by_service, forecast: nil, forecast_note: :insufficient_data
+      month_to_date: BigDecimal("1.00"), by_service: by_service, forecast: nil, month_to_date_before_today: BigDecimal("0"), forecast_note: :insufficient_data
     ))
 
     get summary_path
@@ -111,9 +111,26 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_select "#by-service tbody tr", 2
   end
 
+  test "the estimate card also shows AWS Billing's forecast for comparison" do
+    # Mid-month: on the last day the page shows the final month to date instead.
+    travel_to Time.utc(2026, 11, 15, 12) do
+      CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
+        month_to_date: BigDecimal("35.66"), month_to_date_before_today: BigDecimal("35.10"), by_service: {},
+        forecast: CostSources::CostExplorerTotals::Forecast.new(mean: BigDecimal("19.77"), low: nil, high: nil), forecast_note: nil
+      ))
+      CostStore.record_success(:history, CostSources::MonthlyHistory::Result.new(
+        period_start: BillingPeriod.current(Time.now.utc).start_date, months: {}, billing_forecast: BigDecimal("199.49")
+      ))
+      get root_url
+      assert_select "#estimated-total", "$54.87"
+      assert_match "Month to date + AWS&#39;s daily forecast for the rest of the month", response.body
+      assert_match "AWS Billing&#39;s forecast (based on month-to-month growth): $199.49", response.body
+    end
+  end
+
   test "summary.json escapes HTML in names from AWS" do
     CostStore.record_success(:cost_explorer, CostSources::CostExplorerTotals::Result.new(
-      month_to_date: BigDecimal("1"), by_service: { "<script>alert(1)</script>" => BigDecimal("1") }, forecast: nil, forecast_note: nil
+      month_to_date: BigDecimal("1"), by_service: { "<script>alert(1)</script>" => BigDecimal("1") }, forecast: nil, month_to_date_before_today: BigDecimal("0"), forecast_note: nil
     ))
     get summary_path
     assert_no_match "<script>", response.body

@@ -6,43 +6,54 @@ class CostSummaryTest < ActiveSupport::TestCase
   setup { CostStore.reset! }
   teardown { CostStore.reset! }
 
-  def explorer(mtd:, forecast: nil, note: nil)
-    CostSources::CostExplorerTotals::Result.new(month_to_date: BigDecimal(mtd), by_service: {}, forecast: forecast, forecast_note: note)
+  def explorer(mtd:, before_today: mtd, forecast: nil, note: nil)
+    CostSources::CostExplorerTotals::Result.new(month_to_date: BigDecimal(mtd), by_service: {}, forecast: forecast, forecast_note: note,
+                                                month_to_date_before_today: BigDecimal(before_today))
+  end
+
+  def history(months: {}, billing_forecast: nil, period_start: Date.new(2026, 11, 1))
+    CostSources::MonthlyHistory::Result.new(billing_forecast: nil, period_start: period_start, months: months, billing_forecast: billing_forecast)
   end
 
   def forecast(mean, low = nil, high = nil)
     CostSources::CostExplorerTotals::Forecast.new(mean: BigDecimal(mean), low: low && BigDecimal(low), high: high && BigDecimal(high))
   end
 
-  test "estimated total is AWS's whole-month forecast, not month to date plus forecast" do
-    CostStore.record_success(:cost_explorer, explorer(mtd: "20.00", forecast: forecast("30.00", "25.00", "36.00")), at: NOW)
+  test "estimated total is costs through yesterday plus AWS's forecast from today" do
+    CostStore.record_success(:cost_explorer, explorer(mtd: "20.50", before_today: "20.00", forecast: forecast("10.00", "8.00", "13.00")), at: NOW)
     estimate = CostSummary.new(now: NOW).estimated_total
 
     assert_equal :forecast, estimate.method
     assert_equal BigDecimal("30.00"), estimate.amount
-    assert_equal BigDecimal("25.00"), estimate.low
-    assert_equal BigDecimal("36.00"), estimate.high
+    assert_equal BigDecimal("28.00"), estimate.low
+    assert_equal BigDecimal("33.00"), estimate.high
   end
 
-  # Regression test for findings log #4, using the real figures from
-  # 2026-11-14: Billing and Cost Management showed a $54 forecast, and the page
-  # showed $88.14 because it added the month to date ($33.91) a second time.
-  test "the month to date is not counted twice" do
-    CostStore.record_success(:cost_explorer, explorer(mtd: "33.91", forecast: forecast("54.23", "53.41", "55.06")), at: NOW)
-    estimate = CostSummary.new(now: NOW).estimated_total
+  # Regression test for findings log #5, using the real figures from
+  # 2026-11-15: AWS's monthly forecast (and Billing and Cost Management) said
+  # $199.49, extrapolating month-over-month growth, while spending was a
+  # steady ~$1.24 a day. Daily forecast for Nov 15-30: $19.77.
+  test "the estimate follows the daily pattern, not month-over-month growth" do
+    CostStore.record_success(:cost_explorer, explorer(mtd: "35.66", before_today: "35.10", forecast: forecast("19.77")), at: NOW)
+    CostStore.record_success(:history, history(billing_forecast: BigDecimal("199.49")), at: NOW)
+    summary = CostSummary.new(now: NOW)
 
-    assert_equal BigDecimal("54.23"), estimate.amount
-    assert_equal BigDecimal("53.41"), estimate.low
-    assert_equal BigDecimal("55.06"), estimate.high
+    assert_equal BigDecimal("54.87"), summary.estimated_total.amount
+    assert_equal BigDecimal("199.49"), summary.billing_forecast
   end
 
   test "the estimate never ends below what's already been spent" do
-    CostStore.record_success(:cost_explorer, explorer(mtd: "40.00", forecast: forecast("38.00", "36.00", "41.00")), at: NOW)
+    CostStore.record_success(:cost_explorer, explorer(mtd: "40.00", before_today: "30.00", forecast: forecast("8.00", "6.00", "11.00")), at: NOW)
     estimate = CostSummary.new(now: NOW).estimated_total
 
     assert_equal BigDecimal("40.00"), estimate.amount
     assert_equal BigDecimal("40.00"), estimate.low
     assert_equal BigDecimal("41.00"), estimate.high
+  end
+
+  test "Billing's forecast from last month's history is not shown after rollover" do
+    CostStore.record_success(:history, history(billing_forecast: BigDecimal("99"), period_start: Date.new(2026, 10, 1)), at: Time.utc(2026, 10, 31, 20))
+    assert_nil CostSummary.new(now: Time.utc(2026, 11, 1, 1)).billing_forecast
   end
 
   test "without a forecast, a labeled simple projection is used" do
@@ -87,7 +98,7 @@ class CostSummaryTest < ActiveSupport::TestCase
   end
 
   test "history fetched for last month's period is ignored after rollover" do
-    stale = CostSources::MonthlyHistory::Result.new(period_start: Date.new(2026, 10, 1), months: { Date.new(2026, 7, 1) => {} })
+    stale = CostSources::MonthlyHistory::Result.new(billing_forecast: nil, period_start: Date.new(2026, 10, 1), months: { Date.new(2026, 7, 1) => {} })
     CostStore.record_success(:history, stale, at: Time.utc(2026, 10, 31, 20))
     summary = CostSummary.new(now: Time.utc(2026, 11, 1, 1))
 
@@ -97,9 +108,10 @@ class CostSummaryTest < ActiveSupport::TestCase
 
   test "breakdown combines this month by service with the history" do
     explorer_result = CostSources::CostExplorerTotals::Result.new(month_to_date: BigDecimal("1"), by_service: { "Amazon Route 53" => BigDecimal("1") },
-                                                                 forecast: nil, forecast_note: nil)
+                                                                 forecast: nil, forecast_note: nil,
+                                                                 month_to_date_before_today: BigDecimal("0"))
     CostStore.record_success(:cost_explorer, explorer_result, at: NOW)
-    history = CostSources::MonthlyHistory::Result.new(period_start: Date.new(2026, 11, 1),
+    history = CostSources::MonthlyHistory::Result.new(billing_forecast: nil, period_start: Date.new(2026, 11, 1),
                                                       months: { Date.new(2026, 10, 1) => { "Amazon Route 53" => BigDecimal("0.5") } })
     CostStore.record_success(:history, history, at: NOW)
 
@@ -136,7 +148,7 @@ class CostSummaryTest < ActiveSupport::TestCase
   end
 
   test "as_of and loaded? per source" do
-    CostStore.record_success(:history, CostSources::MonthlyHistory::Result.new(period_start: Date.new(2026, 11, 1), months: {}), at: NOW - 1.hour)
+    CostStore.record_success(:history, CostSources::MonthlyHistory::Result.new(billing_forecast: nil, period_start: Date.new(2026, 11, 1), months: {}), at: NOW - 1.hour)
     summary = CostSummary.new(now: NOW, intervals: INTERVALS)
     assert summary.loaded?(:history)
     assert_equal NOW - 1.hour, summary.as_of(:history)

@@ -61,6 +61,9 @@ module SummaryPayloadHelper
       details << "Month to date (Cost Explorer): #{usd(s.month_to_date)}"
       details << forecast_note(estimate) if forecast_note(estimate)
     end
+    if (billing = s.billing_forecast) && estimate&.method != :final
+      details << "AWS Billing's forecast (based on month-to-month growth): #{usd(billing)}"
+    end
     {
       title: "Estimated total for #{s.period.start_date.strftime('%B')}",
       amount: estimate ? usd(estimate.amount) : "Loading…",

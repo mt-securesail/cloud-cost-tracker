@@ -37,7 +37,7 @@ by-service breakdown. Deployed to AWS ECS Fargate by GitHub Actions, with the sa
 - On/off switch: `app_enabled` in `infra/terraform.tfvars`. `false` removes the ALB, ECS service, and DNS record;
   the CD workflow then pushes the image but skips the deploy and production ZAP scan.
 - Cost data: `CostRefresher` fetches CloudWatch every 30 min, Cost Explorer every 6 h (2 requests, $0.02), and the
-  previous 3 months once a day (1 request, $0.01), each also once at startup ($0.03 per deploy or restart), only inside the production web server. `COST_FETCH_ENABLED=false` turns it off (the PR ZAP scan
+  previous 3 months plus AWS Billing's monthly forecast once a day (2 requests, $0.02), each also once at startup ($0.04 per deploy or restart), only inside the production web server. `COST_FETCH_ENABLED=false` turns it off (the PR ZAP scan
   does this); locally it's off unless set to `true`. Page views read memory only and never call AWS. Tests use the
   SDK's `stub_responses`; no test calls real AWS.
 - Dashboard updates: the page and `GET /summary.json` render the same payload (`SummaryPayloadHelper`);
