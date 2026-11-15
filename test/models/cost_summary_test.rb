@@ -115,4 +115,32 @@ class CostSummaryTest < ActiveSupport::TestCase
     assert_nil summary.breakdown
     assert_not summary.cloudwatch_loaded?
   end
+
+  INTERVALS = { cloudwatch: 30.minutes.to_i, cost_explorer: 6.hours.to_i, history: 1.day.to_i }.freeze
+
+  test "a source is stale after two refresh intervals without a successful fetch" do
+    CostStore.record_success(:cost_explorer, explorer(mtd: "10.00"), at: NOW - 12.hours)
+    assert_not CostSummary.new(now: NOW, intervals: INTERVALS).stale?(:cost_explorer)
+    assert CostSummary.new(now: NOW + 1.minute, intervals: INTERVALS).stale?(:cost_explorer)
+    assert_equal 12.hours.to_i, CostSummary.new(now: NOW, intervals: INTERVALS).stale_after(:cost_explorer)
+  end
+
+  test "a failed fetch keeps the last good data, which goes stale in time" do
+    CostStore.record_success(:cloudwatch, CostSources::CloudWatchCharges::Result.new(amount: BigDecimal("5"), as_of: NOW - 3.hours), at: NOW - 2.hours)
+    CostStore.record_failure(:cloudwatch, "Seahorse::Client::NetworkingError", at: NOW - 1.minute)
+    summary = CostSummary.new(now: NOW, intervals: INTERVALS)
+
+    assert_equal BigDecimal("5"), summary.current_charges
+    assert summary.stale?(:cloudwatch)
+    assert_not summary.stale?(:history), "a source that has never loaded is not stale, just loading"
+  end
+
+  test "as_of and loaded? per source" do
+    CostStore.record_success(:history, CostSources::MonthlyHistory::Result.new(period_start: Date.new(2026, 11, 1), months: {}), at: NOW - 1.hour)
+    summary = CostSummary.new(now: NOW, intervals: INTERVALS)
+    assert summary.loaded?(:history)
+    assert_equal NOW - 1.hour, summary.as_of(:history)
+    assert_not summary.loaded?(:cloudwatch)
+    assert_nil summary.as_of(:cloudwatch)
+  end
 end

@@ -75,7 +75,7 @@ Priority: **Must** = v1 is not done without it. **Should** = planned for v1, can
 
 | ID | Requirement | Priority |
 |---|---|---|
-| R1 | The page refreshes its data from the app's own JSON endpoint about **every 60 seconds** without a full page reload. Browser refreshes never call AWS directly. | Must |
+| R1 | The page refreshes its data from the app's own JSON endpoint **every 5 minutes** (and when the tab becomes visible again) without a full page reload. The data changes only a few times a day, so polling more often adds nothing; the "ago" times update every 30 seconds without a request. Browser refreshes never call AWS directly. | Must |
 | R2 | The backend fetches CloudWatch `EstimatedCharges` **every 30 minutes**. | Must |
 | R3 | The backend fetches Cost Explorer month-to-date by service and the forecast **every 6 hours**. | Must |
 | R4 | The backend fetches the previous 3 months by service **once a day**, since past months barely change. | Must |
@@ -121,8 +121,8 @@ around $3/month**. Task restarts add about $0.03 each.
 ### 6.2 Current charges (F3)
 
 - `GetMetricData` for `AWS/Billing` / `EstimatedCharges` / `Currency=USD` (no `ServiceName` dimension = account
-  total), statistic `Maximum`, period 1 h (so the "as of" time is within an hour of AWS's update), over the last
-  2 days. Use the most recent datapoint.
+  total), statistic `Maximum`, period 1 minute (so the "as of" time is the minute AWS published the number; AWS
+  publishes about every 6 hours), over the last 2 days. Use the most recent datapoint.
 - The metric resets at the start of each month. A datapoint timestamped in the previous month must not be shown as the
   current month's charges. Show "No data yet this period" instead.
 - Prerequisite: **"Receive CloudWatch billing alerts"** must be turned on in the management account

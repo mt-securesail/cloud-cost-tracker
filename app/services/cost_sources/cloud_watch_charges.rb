@@ -11,9 +11,11 @@ module CostSources
     Result = Data.define(:amount, :as_of)
 
     LOOKBACK = 2.days
-    # Hourly buckets, so the "as of" time is within an hour of when AWS
-    # actually updated the number.
-    BUCKET_SECONDS = 3600
+    # 1-minute buckets, so the "as of" time is the minute AWS published the
+    # number. (Hourly buckets start at the query's start time, not at AWS's
+    # update, so they made "as of" up to an hour early.) AWS publishes only a
+    # few datapoints a day, and the price is per metric, not per datapoint.
+    BUCKET_SECONDS = 60
 
     def initialize(client: nil, clock: -> { Time.now.utc })
       @client = client

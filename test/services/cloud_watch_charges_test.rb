@@ -28,6 +28,8 @@ class CloudWatchChargesTest < ActiveSupport::TestCase
     assert_equal "EstimatedCharges", stat[:metric][:metric_name]
     assert_equal [{ name: "Currency", value: "USD" }], stat[:metric][:dimensions]
     assert_equal "Maximum", stat[:stat]
+    # 1-minute buckets: "as of" is the minute AWS published the number.
+    assert_equal 60, stat[:period]
   end
 
   test "a datapoint from last month is not this month's charges" do
